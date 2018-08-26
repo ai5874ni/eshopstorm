@@ -12,7 +12,7 @@ import org.apache.storm.utils.Utils;
 
 /**
  * @program: eshopstorm
- * @description: ${description}
+ * @description: Prewarm Storm
  * @author: Li YangLin
  * @create: 2018-08-25 16:06
  */
