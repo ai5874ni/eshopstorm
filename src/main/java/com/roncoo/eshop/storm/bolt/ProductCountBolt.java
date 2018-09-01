@@ -86,7 +86,7 @@ public class ProductCountBolt extends BaseRichBolt {
                         continue;
                     }
 
-                    LOGGER.info("【HotProductFindThread打印productCountMap的长度】size=" + productCountMap.size());
+                    LOGGER.info("------------------LRUmap数据" + productCountMap.size());
 
                     // 1、先做全局的排序
 
@@ -124,10 +124,10 @@ public class ProductCountBolt extends BaseRichBolt {
                         }
                     }
 
-                    LOGGER.info("【HotProductFindThread全局排序后的结果】productCountList=" + productCountList);
+                    LOGGER.info("--------------排序之后productCountList=" + productCountList);
 
                     // 2、计算出95%的商品的访问次数的平均值
-                    int calculateCount = (int)Math.floor(productCountList.size() * 0.95);
+                    int calculateCount = (int)Math.ceil(productCountList.size() * 0.95);
 
                     Long totalCount = 0L;
                     for(int i = productCountList.size() - 1; i >= productCountList.size() - calculateCount; i--) {
@@ -136,14 +136,14 @@ public class ProductCountBolt extends BaseRichBolt {
 
                     Long avgCount = totalCount / calculateCount;
 
-                    LOGGER.info("【HotProductFindThread计算出95%的商品的访问次数平均值】avgCount=" + avgCount);
+                    LOGGER.info("------------------【HotProductFindThread计算出95%的商品的访问次数平均值】avgCount=" + avgCount);
 
                     // 3、从第一个元素开始遍历，判断是否是平均值得10倍
                     for(Map.Entry<Long, Long> productCountEntry : productCountList) {
-                        if(productCountEntry.getValue() > 10 * avgCount) {
-                            LOGGER.info("【HotProductFindThread发现一个热点】productCountEntry=" + productCountEntry);
+                        if(productCountEntry.getValue() > 2 * avgCount) {
+                            LOGGER.info("---------【HotProductFindThread发现一个热点】productCountEntry=" + productCountEntry);
                             hotProductIdList.add(productCountEntry.getKey());
-
+                            LOGGER.info("--------是否需要加入热点=" + !lastTimeHotProductIdList.contains(productCountEntry.getKey()));
                             if(!lastTimeHotProductIdList.contains(productCountEntry.getKey())) {
                                 // 将缓存热点反向推送到流量分发的nginx中
                                 String distributeNginxURL = "http://192.168.0.3/hot?productId=" + productCountEntry.getKey();
@@ -170,21 +170,22 @@ public class ProductCountBolt extends BaseRichBolt {
                     }
 
                     // 4、实时感知热点数据的消失
+                    LOGGER.info("-----------------lastTimeHotProductIdList=" + lastTimeHotProductIdList);
+                    LOGGER.info("-----------------hotProductIdList=" + hotProductIdList);
                     if(lastTimeHotProductIdList.size() == 0) {
                         if(hotProductIdList.size() > 0) {
                             for(Long productId : hotProductIdList) {
                                 lastTimeHotProductIdList.add(productId);
                             }
-                            LOGGER.info("【HotProductFindThread保存上次热点数据】lastTimeHotProductIdList=" + lastTimeHotProductIdList);
                         }
                     } else {
                         for(Long productId : lastTimeHotProductIdList) {
                             if(!hotProductIdList.contains(productId)) {
-                                LOGGER.info("【HotProductFindThread发现一个热点消失了】productId=" + productId);
                                 // 说明上次的那个商品id的热点，消失了
                                 // 发送一个http请求给到流量分发的nginx中，取消热点缓存的标识
                                 String url = "http://192.168.0.3/cancel_hot?productId=" + productId;
                                 HttpClientUtils.sendGetRequest(url);
+                                LOGGER.info("----------------取消热点url=" + url);
                             }
                         }
                         lastTimeHotProductIdList.clear();
@@ -192,7 +193,7 @@ public class ProductCountBolt extends BaseRichBolt {
                             for(Long productId : hotProductIdList) {
                                 lastTimeHotProductIdList.add(productId);
                             }
-                            LOGGER.info("【HotProductFindThread保存上次热点数据】lastTimeHotProductIdList=" + lastTimeHotProductIdList);
+                            LOGGER.info("-----------将热点数据加入上次热点=" + lastTimeHotProductIdList);
                         }
                     }
 
